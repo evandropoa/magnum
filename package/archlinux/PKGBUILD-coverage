@@ -52,6 +52,7 @@ build() {
         -DWITH_IMAGECONVERTER=ON \
         -DWITH_SCENECONVERTER=ON \
         -DWITH_GL_INFO=ON \
+        -DWITH_VK_INFO=ON \
         -DWITH_AL_INFO=ON \
         -DBUILD_TESTS=ON \
         -DBUILD_GL_TESTS=ON \
@@ -70,6 +71,7 @@ check() {
     MAGNUM_DISABLE_EXTENSIONS="GL_KHR_debug" CORRADE_TEST_SKIP_BENCHMARKS=ON CORRADE_TEST_COLOR=ON ctest --output-on-failure -j5 -R GLTest || true
     ./Debug/bin/magnum-al-info > /dev/null
     ./Debug/bin/magnum-gl-info --limits > /dev/null
+    ./Debug/bin/magnum-vk-info > /dev/null
 
     rm -rf coverage
     mkdir coverage
