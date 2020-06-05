@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <Corrade/Utility/Assert.h>
 
+#include "Magnum/Vk/Extensions.h"
 #include "Magnum/Vk/Result.h"
 #include "Magnum/Vk/Version.h"
 
@@ -137,6 +138,38 @@ Containers::StringView InstanceProperties::layerDescription(const UnsignedInt id
     CORRADE_ASSERT(id < _layers.size(),
         "Vk::InstanceProperties::layerDescription(): index" << id << "out of range for" << _layers.size() << "entries", {});
     return _layers[id].description;
+}
+
+namespace {
+
+/* When adding a new list, InstanceExtension::extensions() and
+   Instance::initialize() needs to be adapted. Binary search is performed on
+   the extensions, thus they have to be sorted alphabetically. */
+constexpr InstanceExtension InstanceExtensions[] {
+    Extensions::EXT::debug_report{},
+    Extensions::EXT::debug_utils{},
+    Extensions::EXT::validation_features{},
+};
+constexpr InstanceExtension InstanceExtensions11[] {
+    Extensions::KHR::device_group_creation{},
+    Extensions::KHR::external_fence_capabilities{},
+    Extensions::KHR::external_memory_capabilities{},
+    Extensions::KHR::external_semaphore_capabilities{},
+    Extensions::KHR::get_physical_device_properties2{},
+};
+/* No Vulkan 1.2 instance extensions */
+
+}
+
+Containers::ArrayView<const InstanceExtension> InstanceExtension::extensions(const Version version) {
+    switch(version) {
+        case Version::None: return Containers::arrayView(InstanceExtensions);
+        case Version::Vk10: return nullptr;
+        case Version::Vk11: return Containers::arrayView(InstanceExtensions11);
+        case Version::Vk12: return nullptr;
+    }
+
+    CORRADE_INTERNAL_ASSERT_UNREACHABLE(); /* LCOV_EXCL_LINE */
 }
 
 }}

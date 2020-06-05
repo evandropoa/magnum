@@ -26,7 +26,7 @@
 */
 
 /** @file
- * @brief Class @ref Magnum::Vk::InstanceProperties
+ * @brief Class @ref Magnum::Vk::InstanceProperties, @ref Magnum::Vk::InstanceExtension
  * @m_since_latest
  */
 
@@ -39,6 +39,13 @@
 #include "Magnum/Vk/visibility.h"
 
 namespace Magnum { namespace Vk {
+
+namespace Implementation {
+    enum: std::size_t { InstanceExtensionCount = 16 };
+
+    /** @todo filter out GL/AL extensions also */
+    CORRADE_HAS_TYPE(IsInstanceExtension, decltype(T::InstanceIndex));
+}
 
 /**
 @brief Global Vulkan instance properties
@@ -144,6 +151,48 @@ class MAGNUM_VK_EXPORT InstanceProperties {
 
         Version _version{};
         Containers::Array<VkLayerProperties> _layers;
+};
+
+/**
+@brief Run-time information about a Vulkan instance extension
+@m_since_latest
+
+Encapsulates runtime information about a Vulkan extension, such as name string,
+minimal required Vulkan version and version in which the extension was adopted
+to core.
+
+See also the @ref Extensions namespace, which contain compile-time information
+about Vulkan extensions.
+*/
+class MAGNUM_VK_EXPORT InstanceExtension {
+    public:
+        /** @brief All known instance extensions for given Vulkan version */
+        static Containers::ArrayView<const InstanceExtension> extensions(Version version);
+
+        /** @brief Internal unique extension index */
+        constexpr std::size_t index() const { return _index; }
+
+        /** @brief Minimal version required by this extension */
+        constexpr Version requiredVersion() const { return _requiredVersion; }
+
+        /** @brief Version in which this extension was adopted to core */
+        constexpr Version coreVersion() const { return _coreVersion; }
+
+        /**
+         * @brief Extension string
+         *
+         * The returned view is a global memory.
+         */
+        constexpr Containers::StringView string() const { return _string; }
+
+        /** @brief Construct from a compile-time instance extension */
+        template<class E, class = typename std::enable_if<Implementation::IsInstanceExtension<E>::value>::type> constexpr InstanceExtension(const E&): _index{E::InstanceIndex}, _requiredVersion{E::requiredVersion()}, _coreVersion{E::coreVersion()}, _string{E::string()} {}
+
+    private:
+        std::size_t _index;
+        Version _requiredVersion;
+        Version _coreVersion;
+        Containers::StringView _string;
 };
 
 }}

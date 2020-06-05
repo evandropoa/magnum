@@ -34,6 +34,7 @@
 namespace Magnum { namespace Vk {
 
 #ifndef DOXYGEN_GENERATING_OUTPUT
+enum class PhysicalDeviceType: Int;
 enum class Result: Int;
 enum class Version: UnsignedInt;
 #endif
