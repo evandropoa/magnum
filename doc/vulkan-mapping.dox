@@ -23,20 +23,29 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-namespace Magnum {
+namespace Magnum { namespace Vk {
 
-/** @page vulkan Vuulkan
-@brief State of Vulkan support, version and extension requirements.
+/** @page vulkan-mapping Command mapping
+@brief List of Vulkan commands corresponding to particular Magnum API.
 
-The following table maps Vulkan function names to Magnum API, useful for
-developers with existing Vulkan background. Note that, as reverse mapping, each
-function documentation also contains list of Vulkan functions used. You can
-also use the search functionality to find out which Vulkan API corresponds to
-which Magnum function, class or enum value. Just enter name of an Vulkan
-function, define or GLSL name into the search box.
+@tableofcontents
+@m_footernavigation
 
--   @subpage vulkan-mapping
+Legend:
+
+-   (empty) --- given feature is not yet implemented
+
+@section vulkan-mapping-functions Functions
+
+@subsection vulkan-mapping-functions-e E
+
+@m_class{m-fullwidth}
+
+Vulkan function                         | Matching API
+--------------------------------------- | ------------
+@fn_vk{EnumerateInstanceLayerProperties} | @ref InstanceProperties
+@fn_vk{EnumerateInstanceVersion}        | @ref InstanceProperties
 
 */
 
-}
+}}

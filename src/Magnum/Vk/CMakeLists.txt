@@ -36,7 +36,8 @@ set(MagnumVk_SRCS
     Version.cpp)
 
 set(MagnumVk_GracefulAssert_SRCS
-    Enums.cpp)
+    Enums.cpp
+    Instance.cpp)
 
 set(MagnumVk_HEADERS
     Enums.h

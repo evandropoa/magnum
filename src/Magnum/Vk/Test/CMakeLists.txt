@@ -28,3 +28,7 @@ corrade_add_test(VkEnumsTest EnumsTest.cpp LIBRARIES MagnumVkTestLib)
 corrade_add_test(VkIntegrationTest IntegrationTest.cpp LIBRARIES MagnumVk)
 corrade_add_test(VkResultTest ResultTest.cpp LIBRARIES MagnumVk)
 corrade_add_test(VkVersionTest VersionTest.cpp LIBRARIES MagnumVk)
+
+if(BUILD_VK_TESTS)
+    corrade_add_test(VkInstanceVkTest InstanceVkTest.cpp LIBRARIES MagnumVkTestLib)
+endif()
