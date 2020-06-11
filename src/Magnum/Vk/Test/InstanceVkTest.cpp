@@ -30,6 +30,7 @@
 #include <Corrade/Utility/DebugStl.h>
 #include <Corrade/Utility/FormatStl.h>
 
+#include "Magnum/Vk/Extensions.h"
 #include "Magnum/Vk/Instance.h"
 #include "Magnum/Vk/Version.h"
 
@@ -43,6 +44,13 @@ struct InstanceVkTest: TestSuite::Tester {
     void propertiesLayers();
     void propertiesLayerOutOfRange();
     void propertiesIsLayerSupported();
+
+    void extensionPropertiesGlobal();
+    void extensionPropertiesWithKhronosValidationLayer();
+    void extensionPropertiesNonexistentLayer();
+    void extensionPropertiesOutOfRange();
+    void extensionPropertiesIsExtensionSupported();
+    void extensionPropertiesNamedExtensionRevision();
 };
 
 InstanceVkTest::InstanceVkTest() {
@@ -50,7 +58,14 @@ InstanceVkTest::InstanceVkTest() {
               &InstanceVkTest::propertiesIsVersionSupported,
               &InstanceVkTest::propertiesLayers,
               &InstanceVkTest::propertiesLayerOutOfRange,
-              &InstanceVkTest::propertiesIsLayerSupported});
+              &InstanceVkTest::propertiesIsLayerSupported,
+
+              &InstanceVkTest::extensionPropertiesGlobal,
+              &InstanceVkTest::extensionPropertiesWithKhronosValidationLayer,
+              &InstanceVkTest::extensionPropertiesNonexistentLayer,
+              &InstanceVkTest::extensionPropertiesOutOfRange,
+              &InstanceVkTest::extensionPropertiesIsExtensionSupported,
+              &InstanceVkTest::extensionPropertiesNamedExtensionRevision});
 }
 
 using namespace Containers::Literals;
@@ -139,6 +154,135 @@ void InstanceVkTest::propertiesIsLayerSupported() {
     /* Verify that we're not just comparing a prefix */
     const std::string layer = std::string(properties.layer(0)) + "_hello";
     CORRADE_VERIFY(!properties.isLayerSupported(layer));
+}
+
+void InstanceVkTest::extensionPropertiesGlobal() {
+    InstanceExtensionProperties properties;
+    Debug{} << "Available instance extension count:" << properties.extensions().size();
+
+    CORRADE_COMPARE_AS(properties.extensionCount(), 0, TestSuite::Compare::Greater);
+    for(std::size_t i = 0; i != properties.extensionCount(); ++i) {
+        using namespace Containers::Literals;
+        CORRADE_ITERATION(properties.extension(i));
+        CORRADE_COMPARE_AS(properties.extension(i).size(), "VK_"_s.size(),
+            TestSuite::Compare::Greater);
+        CORRADE_COMPARE_AS(properties.extensionRevision(i), 0,
+            TestSuite::Compare::Greater);
+        /* All extensions are from the global layer */
+        CORRADE_COMPARE(properties.extensionLayer(i), 0);
+    }
+
+    /* The extension list should be sorted and unique (so Less, not
+       LessOrEqual) */
+    Containers::ArrayView<const Containers::StringView> extensions = properties.extensions();
+    for(std::size_t i = 1; i != extensions.size(); ++i) {
+        CORRADE_COMPARE_AS(extensions[i - 1], extensions[i],
+            TestSuite::Compare::Less);
+    }
+}
+
+void InstanceVkTest::extensionPropertiesWithKhronosValidationLayer() {
+    if(!InstanceProperties{}.isLayerSupported("VK_LAYER_KHRONOS_validation"))
+        CORRADE_SKIP("VK_LAYER_KHRONOS_validation not supported, can't test");
+
+    /* There should be more extensions with this layer enabled */
+    InstanceExtensionProperties global;
+    InstanceExtensionProperties withKhronosValidation{"VK_LAYER_KHRONOS_validation"};
+    CORRADE_COMPARE_AS(global.extensionCount(),
+        withKhronosValidation.extensionCount(),
+        TestSuite::Compare::Less);
+
+    /* The extension list should be sorted even including the extra layers, and
+       unique (so Less, not LessOrEqual) */
+    Containers::ArrayView<const Containers::StringView> extensions = withKhronosValidation.extensions();
+    for(std::size_t i = 1; i != extensions.size(); ++i) {
+        CORRADE_COMPARE_AS(extensions[i - 1], extensions[i],
+            TestSuite::Compare::Less);
+    }
+
+    /* The VK_LAYER_KHRONOS_validation adds extensions that are supported
+       globally, which means extensionCount() should be larger than
+       extensions.size() as it has some duplicates */
+    CORRADE_COMPARE_AS(withKhronosValidation.extensionCount(), extensions.size(),
+        TestSuite::Compare::Greater);
+
+    /* The last extension should be from the validation layer */
+    CORRADE_COMPARE(withKhronosValidation.extensionLayer(0), 0);
+    CORRADE_COMPARE(withKhronosValidation.extensionLayer(withKhronosValidation.extensionCount() - 1), 1);
+
+    /* VK_EXT_validation_features is only in the layer */
+    CORRADE_VERIFY(!global.isExtensionSupported("VK_EXT_validation_features"));
+    CORRADE_VERIFY(withKhronosValidation.isExtensionSupported("VK_EXT_validation_features"));
+}
+
+void InstanceVkTest::extensionPropertiesNonexistentLayer() {
+    CORRADE_SKIP("Currently this hits an internal assert, which can't be tested.");
+
+    std::ostringstream out;
+    Error redirectError{&out};
+    InstanceExtensionProperties{"VK_LAYER_this_doesnt_exist"};
+    CORRADE_COMPARE(out.str(), "TODO");
+}
+
+void InstanceVkTest::extensionPropertiesOutOfRange() {
+    InstanceExtensionProperties properties;
+    const UnsignedInt count = properties.extensionCount();
+
+    std::ostringstream out;
+    Error redirectError{&out};
+    properties.extension(count);
+    properties.extensionRevision(count);
+    CORRADE_COMPARE(out.str(), Utility::formatString(
+        "Vk::InstanceExtensionProperties::extension(): index {0} out of range for {0} entries\n"
+        "Vk::InstanceExtensionProperties::extensionRevision(): index {0} out of range for {0} entries\n", count));
+}
+
+void InstanceVkTest::extensionPropertiesIsExtensionSupported() {
+    InstanceExtensionProperties properties;
+    CORRADE_COMPARE_AS(properties.extensionCount(), 0, TestSuite::Compare::Greater);
+
+    for(UnsignedInt i = 0; i != properties.extensionCount(); ++i) {
+        CORRADE_ITERATION(properties.extension(i));
+        CORRADE_VERIFY(properties.isExtensionSupported(properties.extension(i)));
+    }
+
+    CORRADE_VERIFY(!properties.isExtensionSupported("this extension doesn't exist"));
+
+    /* Verify that we're not just comparing a prefix */
+    const std::string extension = std::string(properties.extension(0)) + "_hello";
+    CORRADE_VERIFY(!properties.isExtensionSupported(extension));
+
+    /* This extension should be available almost always */
+    if(!properties.isExtensionSupported("VK_KHR_get_physical_device_properties2"))
+        CORRADE_SKIP("VK_KHR_get_physical_device_properties2 not supported, can't fully test");
+
+    /* Verify the overloads that take our extension wrappers work as well */
+    CORRADE_VERIFY(properties.isExtensionSupported<Extensions::KHR::get_physical_device_properties2>());
+    CORRADE_VERIFY(properties.isExtensionSupported(Extensions::KHR::get_physical_device_properties2{}));
+}
+
+void InstanceVkTest::extensionPropertiesNamedExtensionRevision() {
+    InstanceExtensionProperties properties;
+    /** @todo use Extensions::KHR::surface once the extension is recognized */
+    if(!properties.isExtensionSupported("VK_KHR_surface"))
+        CORRADE_SKIP("VK_KHR_surface not supported, can't test");
+    if(!properties.isExtensionSupported<Extensions::KHR::get_physical_device_properties2>())
+        CORRADE_SKIP("VK_KHR_get_physical_device_properties2 not supported, can't test");
+
+    /* It was at revision 25 in January 2016, which is four months before
+       Vulkan first came out, so it's safe to assume all drivers have this
+       revision by now */
+    CORRADE_COMPARE_AS(properties.extensionRevision("VK_KHR_surface"), 25,
+        TestSuite::Compare::GreaterOrEqual);
+
+    /* Unknown extensions return 0 */
+    CORRADE_COMPARE(properties.extensionRevision("VK_this_doesnt_exist"), 0);
+
+    /* Verify the overloads that take our extension wrappers work as well */
+    CORRADE_COMPARE_AS(properties.extensionRevision<Extensions::KHR::get_physical_device_properties2>(), 0,
+        TestSuite::Compare::Greater);
+    CORRADE_COMPARE_AS(properties.extensionRevision(Extensions::KHR::get_physical_device_properties2{}), 0,
+        TestSuite::Compare::Greater);
 }
 
 }}}}

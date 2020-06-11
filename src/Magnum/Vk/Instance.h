@@ -26,7 +26,7 @@
 */
 
 /** @file
- * @brief Class @ref Magnum::Vk::InstanceProperties, @ref Magnum::Vk::InstanceExtension
+ * @brief Class @ref Magnum::Vk::InstanceProperties, @ref Magnum::Vk::InstanceExtension, @ref Magnum::Vk::InstanceExtensionProperties
  * @m_since_latest
  */
 
@@ -52,7 +52,9 @@ namespace Implementation {
 @m_since_latest
 
 Assembles static information about Vulkan version and available layers, which
-is available without having to create an instance.
+is available without having to create an instance. See also
+@ref InstanceExtensionProperties which contains information about extensions
+available in a particular set of enabled layers.
 
 @section Vk-InstanceProperties-thread-safety Thread safety
 
@@ -193,6 +195,136 @@ class MAGNUM_VK_EXPORT InstanceExtension {
         Version _requiredVersion;
         Version _coreVersion;
         Containers::StringView _string;
+};
+
+/**
+@brief Global Vulkan extension properties
+@m_since_latest
+
+Assembles information about extensions in a desired set of layers. See also
+@ref InstanceProperties which contains information about available Vulkan
+version and layers.
+*/
+class MAGNUM_VK_EXPORT InstanceExtensionProperties {
+    public:
+        /**
+         * @brief Constructor
+         * @param layers        Additional layers to list extensions from
+         *
+         * Expects that all listed layers are supported.
+         * @see @ref InstanceProperties::isLayerSupported(),
+         *      @fn_vk_keyword{EnumerateInstanceExtensionProperties}
+         */
+        explicit InstanceExtensionProperties(Containers::ArrayView<const Containers::StringView> layers = {});
+
+        /** @overload */
+        explicit InstanceExtensionProperties(std::initializer_list<Containers::StringView> layers);
+
+        /**
+         * @brief Instance extensions
+         *
+         * A list of all extension strings reported by the driver for all
+         * layers passed to the constructor, with duplicates removed. Use
+         * @ref isExtensionSupported() to query support of a particular
+         * extension. Note that the list is sorted and thus may be different
+         * than the order in which the @ref extension() and
+         * @ref extensionRevision() accessors return values.
+         *
+         * The returned views are owned by the
+         * @ref InstanceExtensionProperties instance (i.e., *not* a global
+         * memory).
+         */
+        Containers::ArrayView<const Containers::StringView> extensions() const;
+
+        /**
+         * @brief Whether given extension is supported
+         *
+         * Accepts extensions from the @ref Extension namespace as a template
+         * parameter. Use the other overloads to query support of a runtime
+         * extension or a plain extension string.
+         *
+         * Search complexity is @f$ \mathcal{O}(\log n) @f$ in the total
+         * extension count; in contrast extension queries on a created instance
+         * are @f$ \mathcal{O}(1) @f$.
+         * @see @ref extensionRevision()
+         */
+        bool isExtensionSupported(Containers::StringView extension) const;
+
+        /** @overload */
+        bool isExtensionSupported(const InstanceExtension& extension) const {
+            return isExtensionSupported(extension.string());
+        }
+
+        /** @overload */
+        template<class E> bool isExtensionSupported() const {
+            static_assert(Implementation::IsInstanceExtension<E>::value, "expected a Vulkan instance extension");
+            return isExtensionSupported(E::string());
+        }
+
+        /**
+         * @brief Count of extensions reported by the driver for all layers
+         *
+         * The count includes potential duplicates when an extension is both
+         * available globally and through a particular layer.
+         */
+        UnsignedInt extensionCount() const { return _extensions.size(); }
+
+        /**
+         * @brief Extension name
+         * @param id Extension index, expected to be smaller than
+         *      @ref extensionCount()
+         *
+         * The returned view is owned by the
+         * @ref InstanceExtensionProperties instance (i.e., *not* a global
+         * memory).
+         */
+        Containers::StringView extension(UnsignedInt id) const;
+
+        /**
+         * @brief Extension revision
+         * @param id Extension index, expected to be smaller than
+         *      @ref extensionCount()
+         */
+        UnsignedInt extensionRevision(UnsignedInt id) const;
+
+        /**
+         * @brief Revision of a particular extension name
+         *
+         * If the extension is not supported, returns @cpp 0 @ce, supported
+         * extensions always have a non-zero revision. If the extension is
+         * implemented by more than one layer, returns revision of the first
+         * layer implementing it --- use @ref extensionRevision(UnsignedInt) const
+         * to get revision of a concrete extension in a concrete layer.
+         * @see @ref isExtensionSupported()
+         */
+        UnsignedInt extensionRevision(Containers::StringView extension) const;
+
+        /** @overload */
+        UnsignedInt extensionRevision(const InstanceExtension& extension) const {
+            return extensionRevision(extension.string());
+        }
+
+        /** @overload */
+        template<class E> UnsignedInt extensionRevision() const {
+            static_assert(Implementation::IsInstanceExtension<E>::value, "expected a Vulkan instance extension");
+            return extensionRevision(E::string());
+        }
+
+        /**
+         * @brief Extension layer index
+         * @param id Extension index, expected to be smaller than
+         *      @ref extensionCount()
+         *
+         * Returns ID of the layer the extension comes from. @cpp 0 @ce is
+         * global extensions, @cpp 1 @ce is the first layer passed to
+         * @ref InstanceExtensionProperties(Containers::ArrayView<const Containers::StringView>)
+         * and so on.
+         */
+        UnsignedInt extensionLayer(UnsignedInt id) const;
+
+    private:
+        Containers::Array<VkExtensionProperties> _extensions;
+        std::size_t _uniqueExtensionCount;
 };
 
 }}

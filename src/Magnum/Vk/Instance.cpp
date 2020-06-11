@@ -26,6 +26,7 @@
 #include "Instance.h"
 
 #include <algorithm>
+#include <Corrade/Containers/String.h>
 #include <Corrade/Utility/Assert.h>
 
 #include "Magnum/Vk/Extensions.h"
@@ -170,6 +171,103 @@ Containers::ArrayView<const InstanceExtension> InstanceExtension::extensions(con
     }
 
     CORRADE_INTERNAL_ASSERT_UNREACHABLE(); /* LCOV_EXCL_LINE */
+}
+
+InstanceExtensionProperties::InstanceExtensionProperties(const Containers::ArrayView<const Containers::StringView> layers) {
+    /* Retrieve total extension count for all layers + the global extensions */
+    std::size_t totalCount = 0;
+    for(std::size_t i = 0; i <= layers.size(); ++i) {
+        UnsignedInt count;
+        MAGNUM_VK_INTERNAL_ASSERT_RESULT(vkEnumerateInstanceExtensionProperties(
+            i == 0 ? nullptr :
+                Containers::String::nullTerminatedView(layers[i - 1]).data(),
+            &count, nullptr));
+
+        totalCount += count;
+    }
+
+    /* Allocate extra for a list of string views that we'll use to sort &
+       search the values and a layer index so we can map the extensions back
+       to which layer they come from */
+    _extensions = Containers::Array<VkExtensionProperties>{
+        reinterpret_cast<VkExtensionProperties*>(new char[totalCount*(sizeof(VkExtensionProperties) + sizeof(Containers::StringView) + sizeof(UnsignedInt))]),
+        totalCount,
+        [](VkExtensionProperties* data, std::size_t) {
+            delete[] reinterpret_cast<char*>(data);
+        }};
+    Containers::ArrayView<Containers::StringView> extensionNames{reinterpret_cast<Containers::StringView*>(_extensions.end()), totalCount};
+    Containers::ArrayView<UnsignedInt> extensionLayers{reinterpret_cast<UnsignedInt*>(extensionNames.end()), totalCount};
+
+    /* Query the extensions, save layer ID for each */
+    std::size_t offset = 0;
+    for(std::size_t i = 0; i <= layers.size(); ++i) {
+        UnsignedInt count = totalCount - offset;
+        MAGNUM_VK_INTERNAL_ASSERT_RESULT(vkEnumerateInstanceExtensionProperties(
+            i == 0 ? nullptr :
+                Containers::String::nullTerminatedView(layers[i - 1]).data(),
+            &count, reinterpret_cast<VkExtensionProperties*>(_extensions.data()) + offset));
+        for(std::size_t j = 0; j != count; ++j) extensionLayers[offset + j] = i;
+        offset += count;
+    }
+
+    /* Expect the total extension count didn't change between calls */
+    CORRADE_INTERNAL_ASSERT(offset == totalCount);
+
+    /* Populate the views, sort them and remove duplicates so we can search in
+       O(log n) later */
+    for(std::size_t i = 0; i != extensionNames.size(); ++i)
+        extensionNames[i] = _extensions[i].extensionName;
+    std::sort(extensionNames.begin(), extensionNames.end());
+    _uniqueExtensionCount = std::unique(extensionNames.begin(), extensionNames.end()) - extensionNames.begin();
+}
+
+InstanceExtensionProperties::InstanceExtensionProperties(const std::initializer_list<Containers::StringView> layers): InstanceExtensionProperties{Containers::arrayView(layers)} {}
+
+Containers::ArrayView<const Containers::StringView> InstanceExtensionProperties::extensions() const {
+    return {reinterpret_cast<const Containers::StringView*>(_extensions.end()), _uniqueExtensionCount};
+}
+
+bool InstanceExtensionProperties::isExtensionSupported(const Containers::StringView extension) const {
+    return std::binary_search(
+        reinterpret_cast<const Containers::StringView*>(_extensions.end()),
+        reinterpret_cast<const Containers::StringView*>(_extensions.end()) + _uniqueExtensionCount,
+        extension);
+}
+
+Containers::StringView InstanceExtensionProperties::extension(const UnsignedInt id) const {
+    CORRADE_ASSERT(id < _extensions.size(),
+        "Vk::InstanceExtensionProperties::extension(): index" << id << "out of range for" << _extensions.size() << "entries", {});
+    /* Not returning the string views at the end because those are in a
+       different order */
+    return _extensions[id].extensionName;
+}
+
+UnsignedInt InstanceExtensionProperties::extensionRevision(const UnsignedInt id) const {
+    CORRADE_ASSERT(id < _extensions.size(),
+        "Vk::InstanceExtensionProperties::extensionRevision(): index" << id << "out of range for" << _extensions.size() << "entries", {});
+    /* WTF, why VkLayerProperties::specVersion is an actual Vulkan version and
+       here it is a revision number?! Consistency my ass. */
+    return _extensions[id].specVersion;
+}
+
+UnsignedInt InstanceExtensionProperties::extensionRevision(const Containers::StringView extension) const {
+    /* Thanks, C++, for forcing me to do one more comparison than strictly
+       necessary */
+    auto found = std::lower_bound(
+        reinterpret_cast<const Containers::StringView*>(_extensions.end()),
+        reinterpret_cast<const Containers::StringView*>(_extensions.end()) + _uniqueExtensionCount,
+        extension);
+    if(*found != extension) return 0;
+
+    /* The view target is contents of the VkExtensionProperties structure,
+       the revision is stored nearby */
+    return reinterpret_cast<const VkExtensionProperties*>(found->data() - offsetof(VkExtensionProperties, extensionName))->specVersion;
+}
+
+UnsignedInt InstanceExtensionProperties::extensionLayer(const UnsignedInt id) const {
+    CORRADE_ASSERT(id < _extensions.size(),
+        "Vk::InstanceExtensionProperties::extensionLayer(): index" << id << "out of range for" << _extensions.size() << "entries", {});
+    return reinterpret_cast<const UnsignedInt*>(reinterpret_cast<const Containers::StringView*>(_extensions.end()) + _extensions.size())[id];
 }
 
 }}

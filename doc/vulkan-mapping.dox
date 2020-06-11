@@ -43,6 +43,7 @@ Legend:
 
 Vulkan function                         | Matching API
 --------------------------------------- | ------------
+@fn_vk{EnumerateInstanceExtensionProperties} | @ref InstanceExtensionProperties
 @fn_vk{EnumerateInstanceLayerProperties} | @ref InstanceProperties
 @fn_vk{EnumerateInstanceVersion}        | @ref InstanceProperties
 
