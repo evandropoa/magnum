@@ -33,6 +33,7 @@ find_package(Vulkan REQUIRED)
 
 set(MagnumVk_SRCS
     Device.cpp
+    Handle.cpp
     Result.cpp
     Version.cpp)
 
@@ -43,6 +44,7 @@ set(MagnumVk_GracefulAssert_SRCS
 set(MagnumVk_HEADERS
     Device.h
     Enums.h
+    Handle.h
     Integration.h
     Result.h
     Version.h
