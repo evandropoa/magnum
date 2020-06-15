@@ -44,7 +44,12 @@ namespace Implementation {
     enum: std::size_t { InstanceExtensionCount = 16 };
 
     /** @todo filter out GL/AL extensions also */
-    CORRADE_HAS_TYPE(IsInstanceExtension, decltype(T::InstanceIndex));
+    template<class...> class IsInstanceExtension;
+    CORRADE_HAS_TYPE(IsInstanceExtension<U>, decltype(T::InstanceIndex));
+    template<class T, class U, class ...Args> class IsInstanceExtension<T, U, Args...> {
+        /** @todo C++17: use &&... instead of all this */
+        public: enum: bool { value = IsInstanceExtension<T>::value && IsInstanceExtension<U, Args...>::value };
+    };
 }
 
 /**

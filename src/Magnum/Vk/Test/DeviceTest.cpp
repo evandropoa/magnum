@@ -62,6 +62,25 @@ void DeviceTest::isExtension() {
         CORRADE_EXPECT_FAIL("GL/AL extensions are not rejected right now.");
         CORRADE_VERIFY(!Implementation::IsExtension<GLExtension>::value);
     }
+
+    /* Variadic check (used in variadic addEnabledExtensions()), check that it
+       properly fails for each occurence of a device extension */
+    CORRADE_VERIFY((Implementation::IsExtension<
+        Extensions::KHR::external_memory,
+        Extensions::KHR::depth_stencil_resolve,
+        Extensions::KHR::external_fence>::value));
+    CORRADE_VERIFY(!(Implementation::IsExtension<
+        Extensions::KHR::external_memory_capabilities, /* not */
+        Extensions::KHR::depth_stencil_resolve,
+        Extensions::KHR::external_fence>::value));
+    CORRADE_VERIFY(!(Implementation::IsExtension<
+        Extensions::KHR::external_memory,
+        Extensions::EXT::debug_report, /* not */
+        Extensions::KHR::external_fence>::value));
+    CORRADE_VERIFY(!(Implementation::IsExtension<
+        Extensions::KHR::external_memory,
+        Extensions::KHR::depth_stencil_resolve,
+        Extensions::KHR::external_fence_capabilities>::value)); /* not */
 }
 
 void DeviceTest::extensionConstructExtensionFromCompileTimeExtension() {

@@ -43,7 +43,12 @@ namespace Implementation {
     enum: std::size_t { ExtensionCount = 72 };
 
     /** @todo filter out GL/AL extensions also */
-    CORRADE_HAS_TYPE(IsExtension, decltype(T::Index));
+    template<class...> class IsExtension;
+    CORRADE_HAS_TYPE(IsExtension<U>, decltype(T::Index));
+    template<class T, class U, class ...Args> class IsExtension<T, U, Args...> {
+        /** @todo C++17: use &&... instead of all this */
+        public: enum: bool { value = IsExtension<T>::value && IsExtension<U, Args...>::value };
+    };
 }
 
 /**

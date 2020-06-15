@@ -39,18 +39,43 @@ struct InstanceTest: TestSuite::Tester {
 
     void extensionConstructFromCompileTimeExtension();
     void extensionExtensions();
+
+    void constructNoCreate();
+    void constructCopy();
 };
 
 InstanceTest::InstanceTest() {
     addTests({&InstanceTest::isInstanceExtension,
               &InstanceTest::extensionConstructFromCompileTimeExtension,
-              &InstanceTest::extensionExtensions});
+              &InstanceTest::extensionExtensions,
+
+              &InstanceTest::constructNoCreate,
+              &InstanceTest::constructCopy});
 }
 
 void InstanceTest::isInstanceExtension() {
     CORRADE_VERIFY(Implementation::IsInstanceExtension<Extensions::KHR::get_physical_device_properties2>::value);
     CORRADE_VERIFY(!Implementation::IsInstanceExtension<Extensions::KHR::external_memory>::value);
     CORRADE_VERIFY(!Implementation::IsInstanceExtension<int>::value);
+
+    /* Variadic check (used in variadic addEnabledExtensions()), check that it
+       properly fails for each occurence of a device extension */
+    CORRADE_VERIFY((Implementation::IsInstanceExtension<
+        Extensions::KHR::get_physical_device_properties2,
+        Extensions::KHR::external_memory_capabilities,
+        Extensions::KHR::external_fence_capabilities>::value));
+    CORRADE_VERIFY(!(Implementation::IsInstanceExtension<
+        Extensions::KHR::draw_indirect_count, /* not */
+        Extensions::KHR::external_memory_capabilities,
+        Extensions::KHR::external_fence_capabilities>::value));
+    CORRADE_VERIFY(!(Implementation::IsInstanceExtension<
+        Extensions::KHR::get_physical_device_properties2,
+        Extensions::KHR::external_memory, /* not */
+        Extensions::KHR::external_fence_capabilities>::value));
+    CORRADE_VERIFY(!(Implementation::IsInstanceExtension<
+        Extensions::KHR::get_physical_device_properties2,
+        Extensions::KHR::external_memory_capabilities,
+        Extensions::KHR::external_fence>::value)); /* not */
 }
 
 void InstanceTest::extensionConstructFromCompileTimeExtension() {
