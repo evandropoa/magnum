@@ -23,37 +23,28 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-#include "Magnum/Magnum.h"
-#include "Magnum/Math/Color.h"
-#include "Magnum/Vk/Extensions.h"
-#include "Magnum/Vk/Integration.h"
+#include <Corrade/Containers/ArrayView.h>
+
 #include "Magnum/Vk/Instance.h"
+#include "MagnumExternal/Vulkan/flextVk.h"
+
+VkInstance instance;
 
 using namespace Magnum;
 
+/* [global-instance-function-pointers] */
+#include <MagnumExternal/Vulkan/flextVkGlobal.h>
+
 int main() {
-{
-Vk::Instance instance;
-/* [Instance-isExtensionEnabled] */
-if(instance.isExtensionEnabled<Vk::Extensions::EXT::debug_utils>()) {
-    // use the fancy debugging APIs
-} else if(instance.isExtensionEnabled<Vk::Extensions::EXT::debug_report>()) {
-    // use the non-fancy and deprecated debugging APIs
-} else {
-    // well, tough luck
-}
-/* [Instance-isExtensionEnabled] */
-}
+    Vk::Instance instance;
+    instance.populateGlobalFunctionPointers();
 
-{
-/* [Integration] */
-VkOffset2D a{64, 32};
-Vector2i b(a);
+    // ...
 
-using namespace Math::Literals;
-VkClearColorValue c = VkClearColorValue(0xff9391_srgbf);
-/* [Integration] */
-static_cast<void>(b);
-static_cast<void>(c);
+    VkPhysicalDeviceGroupProperties properties[10];
+    UnsignedInt count = Containers::arraySize(properties);
+    vkEnumeratePhysicalDeviceGroupsKHR(instance, &count, properties);
+
+    // ...
 }
-}
+/* [global-instance-function-pointers] */

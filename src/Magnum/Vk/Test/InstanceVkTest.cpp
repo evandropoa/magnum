@@ -32,7 +32,10 @@
 
 #include "Magnum/Vk/Extensions.h"
 #include "Magnum/Vk/Instance.h"
+#include "Magnum/Vk/Result.h"
 #include "Magnum/Vk/Version.h"
+
+#include "MagnumExternal/Vulkan/flextVkGlobal.h"
 
 namespace Magnum { namespace Vk { namespace Test { namespace {
 
@@ -51,6 +54,72 @@ struct InstanceVkTest: TestSuite::Tester {
     void extensionPropertiesOutOfRange();
     void extensionPropertiesIsExtensionSupported();
     void extensionPropertiesNamedExtensionRevision();
+
+    void construct();
+    void constructLayerExtension();
+    void constructCommandLineDisable();
+    void constructCommandLineEnable();
+    void constructMove();
+    void constructUnknownLayer();
+    void constructUnknownExtension();
+    void wrap();
+    void populateGlobalFunctionPointers();
+};
+
+struct {
+    const char* nameDisable;
+    const char* nameEnable;
+    Containers::Array<const char*> argsDisable, argsEnable;
+    bool debugReportEnabled, validationFeaturesEnabled;
+    const char* log;
+} ConstructCommandLineData[] {
+    /* Shouldn't print anything about enabled layers/exts if verbose output
+       isn't enabled */
+    {"", "enabled layer + both extensions", nullptr,
+        Containers::array({"",
+            "--magnum-enable-instance-layers", "VK_LAYER_KHRONOS_validation",
+            "--magnum-enable-instance-extensions", "VK_EXT_debug_report VK_EXT_validation_features"}),
+        true, true,
+        ""},
+    /* Only with verbose log */
+    {"verbose", "enabled layer + both extensions, verbose",
+        Containers::array({"", "--magnum-log", "verbose"}),
+        Containers::array({"", "--magnum-log", "verbose",
+            "--magnum-enable-instance-layers", "VK_LAYER_KHRONOS_validation",
+            "--magnum-enable-instance-extensions", "VK_EXT_debug_report VK_EXT_validation_features"}),
+        true, true,
+        "Enabled instance layers:\n"
+        "    VK_LAYER_KHRONOS_validation\n"
+        "Enabled instance extensions:\n"
+        "    VK_EXT_debug_report\n"
+        "    VK_EXT_validation_features\n"},
+    {"disabled layer + layer-only extension", "enabled extension",
+        Containers::array({"", "--magnum-log", "verbose",
+            "--magnum-disable-layers", "VK_LAYER_KHRONOS_validation",
+            "--magnum-disable-extensions", "VK_EXT_validation_features"}),
+        Containers::array({"", "--magnum-log", "verbose",
+            "--magnum-enable-instance-extensions", "VK_EXT_debug_report"}),
+        true, false,
+        "Enabled instance extensions:\n"
+        "    VK_EXT_debug_report\n"},
+    {"disabled extension", "enabled layer + one extension",
+        Containers::array({"", "--magnum-log", "verbose",
+            "--magnum-disable-extensions", "VK_EXT_debug_report"}),
+        Containers::array({"", "--magnum-log", "verbose",
+            "--magnum-enable-instance-layers", "VK_LAYER_KHRONOS_validation",
+            "--magnum-enable-instance-extensions", "VK_EXT_validation_features"}),
+        false, true,
+        "Enabled instance layers:\n"
+        "    VK_LAYER_KHRONOS_validation\n"
+        "Enabled instance extensions:\n"
+        "    VK_EXT_validation_features\n"},
+    {"disabled extensions + layer", "verbose",
+        Containers::array({"", "--magnum-log", "verbose"
+            "--magnum-disable-layers", "VK_LAYER_KHRONOS_validation",
+            "--magnum-disable-extensions", "VK_EXT_debug_report VK_EXT_validation_features"}),
+        Containers::array({"", "--magnum-log", "verbose"}),
+        false, false,
+        ""},
 };
 
 InstanceVkTest::InstanceVkTest() {
@@ -65,7 +134,20 @@ InstanceVkTest::InstanceVkTest() {
               &InstanceVkTest::extensionPropertiesNonexistentLayer,
               &InstanceVkTest::extensionPropertiesOutOfRange,
               &InstanceVkTest::extensionPropertiesIsExtensionSupported,
-              &InstanceVkTest::extensionPropertiesNamedExtensionRevision});
+              &InstanceVkTest::extensionPropertiesNamedExtensionRevision,
+
+              &InstanceVkTest::construct,
+              &InstanceVkTest::constructLayerExtension});
+
+    addInstancedTests({&InstanceVkTest::constructCommandLineDisable,
+                       &InstanceVkTest::constructCommandLineEnable},
+        Containers::arraySize(ConstructCommandLineData));
+
+    addTests({&InstanceVkTest::constructMove,
+              &InstanceVkTest::constructUnknownLayer,
+              &InstanceVkTest::constructUnknownExtension,
+              &InstanceVkTest::wrap,
+              &InstanceVkTest::populateGlobalFunctionPointers});
 }
 
 using namespace Containers::Literals;
@@ -283,6 +365,198 @@ void InstanceVkTest::extensionPropertiesNamedExtensionRevision() {
         TestSuite::Compare::Greater);
     CORRADE_COMPARE_AS(properties.extensionRevision(Extensions::KHR::get_physical_device_properties2{}), 0,
         TestSuite::Compare::Greater);
+}
+
+void InstanceVkTest::construct() {
+    {
+        Instance instance;
+        CORRADE_VERIFY(instance.handle());
+        /* Instance function pointers should be populated */
+        CORRADE_VERIFY(instance->CreateDevice);
+        CORRADE_COMPARE(instance.handleFlags(), HandleFlag::DestroyOnDestruction);
+        /* No extensions are enabled by default ... */
+        CORRADE_VERIFY(!instance.isExtensionEnabled<Extensions::EXT::debug_report>());
+        /* ... and thus also no function pointers loaded */
+        CORRADE_VERIFY(!instance->CreateDebugReportCallbackEXT);
+    }
+
+    /* Shouldn't crash or anything */
+    CORRADE_VERIFY(true);
+}
+
+void InstanceVkTest::constructLayerExtension() {
+    if(!InstanceProperties{}.isLayerSupported("VK_LAYER_KHRONOS_validation"))
+        CORRADE_SKIP("VK_LAYER_KHRONOS_validation not supported, can't test");
+    if(!InstanceExtensionProperties{"VK_LAYER_KHRONOS_validation"}.isExtensionSupported<Extensions::EXT::debug_report>())
+        CORRADE_SKIP("VK_EXT_debug_report not supported, can't test");
+
+    Instance instance{InstanceCreateInfo{}
+        .setApplicationInfo("InstanceVkTest", version(0, 0, 1))
+        .addEnabledLayers({"VK_LAYER_KHRONOS_validation"_s})
+        .addEnabledExtensions({
+            Extensions::EXT::debug_report::string(),
+            "VK_EXT_validation_features"_s
+        })};
+    CORRADE_VERIFY(instance.handle());
+
+    /* Extensions should be reported as enabled ... */
+    CORRADE_VERIFY(instance.isExtensionEnabled<Extensions::EXT::debug_report>());
+    CORRADE_VERIFY(instance.isExtensionEnabled(Extensions::EXT::validation_features{}));
+    /* ... and function pointers loaded */
+    CORRADE_VERIFY(instance->CreateDebugReportCallbackEXT);
+    /* no entrypoints to test for EXT_validation_features */
+}
+
+void InstanceVkTest::constructCommandLineDisable() {
+    auto&& data = ConstructCommandLineData[testCaseInstanceId()];
+    setTestCaseDescription(data.nameDisable);
+
+    if(!InstanceProperties{}.isLayerSupported("VK_LAYER_KHRONOS_validation"))
+        CORRADE_SKIP("VK_LAYER_KHRONOS_validation not supported, can't test");
+    if(!InstanceExtensionProperties{"VK_LAYER_KHRONOS_validation"}.isExtensionSupported<Extensions::EXT::validation_features>())
+        CORRADE_SKIP("VK_EXT_validation_features not supported, can't test");
+
+    InstanceCreateInfo info{Int(data.argsDisable.size()), data.argsDisable};
+    info.setApplicationInfo("InstanceVkTest", version(0, 0, 1))
+        .addEnabledLayers({"VK_LAYER_KHRONOS_validation"_s})
+        .addEnabledExtensions<Extensions::EXT::debug_report,
+            Extensions::EXT::validation_features>();
+
+    std::ostringstream out;
+    Debug redirectOutput{&out};
+    Instance instance{info};
+    CORRADE_VERIFY(instance.handle());
+    CORRADE_COMPARE(instance.isExtensionEnabled<Extensions::EXT::debug_report>(), data.debugReportEnabled);
+    CORRADE_COMPARE(instance.isExtensionEnabled<Extensions::EXT::validation_features>(), data.validationFeaturesEnabled);
+    CORRADE_COMPARE(out.str(), data.log);
+
+    /* Verify that the entrypoint is actually (not) loaded as expected, to
+       avoid all the above reporting being just smoke & mirrors */
+    CORRADE_COMPARE(!!instance->CreateDebugReportCallbackEXT, data.debugReportEnabled);
+}
+
+void InstanceVkTest::constructCommandLineEnable() {
+    auto&& data = ConstructCommandLineData[testCaseInstanceId()];
+    setTestCaseDescription(data.nameEnable);
+
+    if(!InstanceProperties{}.isLayerSupported("VK_LAYER_KHRONOS_validation"))
+        CORRADE_SKIP("VK_LAYER_KHRONOS_validation not supported, can't test");
+    if(!InstanceExtensionProperties{"VK_LAYER_KHRONOS_validation"}.isExtensionSupported<Extensions::EXT::validation_features>())
+        CORRADE_SKIP("VK_EXT_validation_features not supported, can't test");
+
+    InstanceCreateInfo info{Int(data.argsEnable.size()), data.argsEnable};
+    /* Nothing enabled by the application */
+
+    std::ostringstream out;
+    Debug redirectOutput{&out};
+    Instance instance{info};
+    CORRADE_VERIFY(instance.handle());
+    CORRADE_COMPARE(instance.isExtensionEnabled<Extensions::EXT::debug_report>(), data.debugReportEnabled);
+    CORRADE_COMPARE(instance.isExtensionEnabled<Extensions::EXT::validation_features>(), data.validationFeaturesEnabled);
+    CORRADE_COMPARE(out.str(), data.log);
+
+    /* Verify that the entrypoint is actually (not) loaded as expected, to
+       avoid all the above reporting being just smoke & mirrors */
+    CORRADE_COMPARE(!!instance->CreateDebugReportCallbackEXT, data.debugReportEnabled);
+}
+
+void InstanceVkTest::constructMove() {
+    Instance a{InstanceCreateInfo{}
+        .setApplicationInfo("InstanceVkTest", version(0, 0, 1))};
+    CORRADE_VERIFY(a.handle());
+    CORRADE_COMPARE(a.handleFlags(), HandleFlag::DestroyOnDestruction);
+    CORRADE_VERIFY(a->CreateDevice);
+
+    Instance b = std::move(a);
+    CORRADE_VERIFY(!a.handle());
+    CORRADE_COMPARE(b.handleFlags(), HandleFlag::DestroyOnDestruction);
+    CORRADE_VERIFY(b.handle());
+    /* Function pointers in a are left in whatever state they were before, as
+       that doesn't matter */
+    CORRADE_VERIFY(b->CreateDevice);
+
+    Instance c{NoCreate};
+    c = std::move(b);
+    CORRADE_VERIFY(!b.handle());
+    CORRADE_COMPARE(b.handleFlags(), HandleFlags{});
+    CORRADE_COMPARE(c.handleFlags(), HandleFlag::DestroyOnDestruction);
+    CORRADE_VERIFY(c.handle());
+    /* Everything is swapped, including function pointers */
+    CORRADE_VERIFY(!b->CreateDevice);
+    CORRADE_VERIFY(c->CreateDevice);
+}
+
+void InstanceVkTest::constructUnknownLayer() {
+    CORRADE_SKIP("Currently this hits an internal assert, which can't be tested.");
+
+    std::ostringstream out;
+    Error redirectError{&out};
+    Instance instance{InstanceCreateInfo{}
+        .addEnabledLayers({"VK_LAYER_this_doesnt_exist"_s})};
+    CORRADE_COMPARE(out.str(), "TODO");
+}
+
+void InstanceVkTest::constructUnknownExtension() {
+    CORRADE_SKIP("Currently this hits an internal assert, which can't be tested.");
+
+    std::ostringstream out;
+    Error redirectError{&out};
+    Instance instance{InstanceCreateInfo{}
+        .addEnabledExtensions({"VK_this_doesnt_exist"_s})};
+    CORRADE_COMPARE(out.str(), "TODO");
+}
+
+void InstanceVkTest::wrap() {
+    InstanceExtensionProperties properties;
+    if(!properties.isExtensionSupported<Extensions::EXT::debug_report>())
+        CORRADE_SKIP("VK_EXT_debug_report not supported, can't test");
+    if(!properties.isExtensionSupported<Extensions::KHR::get_physical_device_properties2>())
+        CORRADE_SKIP("VK_KHR_get_physical_device_properties2 not supported, can't test");
+
+    InstanceCreateInfo info;
+    info.addEnabledExtensions<
+        Extensions::EXT::debug_report,
+        Extensions::KHR::get_physical_device_properties2>();
+
+    VkInstance instance;
+    CORRADE_COMPARE(Result(vkCreateInstance(info, nullptr, &instance)), Result::Success);
+    CORRADE_VERIFY(instance);
+
+    {
+        /* Wrapping should load the basic function pointers */
+        auto wrapped = Instance::wrap(instance, {
+            Extensions::EXT::debug_report::string()
+        }, HandleFlag::DestroyOnDestruction);
+        CORRADE_VERIFY(wrapped->DestroyInstance);
+
+        /* Listed extensions should be reported as enabled and function
+           pointers loaded as well */
+        CORRADE_VERIFY(wrapped.isExtensionEnabled<Extensions::EXT::debug_report>());
+        CORRADE_VERIFY(wrapped->CreateDebugReportCallbackEXT);
+
+        /* Unlisted not, but function pointers should still be loaded as the
+           actual instance does have the extension enabled */
+        CORRADE_VERIFY(!wrapped.isExtensionEnabled<Extensions::KHR::get_physical_device_properties2>());
+        CORRADE_VERIFY(wrapped->GetPhysicalDeviceProperties2KHR);
+
+        /* Releasing won't destroy anything ... */
+        CORRADE_COMPARE(wrapped.release(), instance);
+    }
+
+    /* ...so we can wrap it again, non-owned, and then destroy it manually */
+    auto wrapped = Instance::wrap(instance);
+    CORRADE_VERIFY(wrapped->DestroyInstance);
+    wrapped->DestroyInstance(instance, nullptr);
+}
+
+void InstanceVkTest::populateGlobalFunctionPointers() {
+    vkDestroyInstance = nullptr;
+
+    Instance instance;
+    CORRADE_VERIFY(!vkDestroyInstance);
+    instance.populateGlobalFunctionPointers();
+    CORRADE_VERIFY(vkDestroyInstance);
+    CORRADE_VERIFY(vkDestroyInstance == instance->DestroyInstance);
 }
 
 }}}}

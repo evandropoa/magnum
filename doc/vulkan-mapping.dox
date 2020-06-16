@@ -37,6 +37,14 @@ Legend:
 
 @section vulkan-mapping-functions Functions
 
+@subsection vulkan-mapping-functions-c C
+
+@m_class{m-fullwidth}
+
+Vulkan function                         | Matching API
+--------------------------------------- | ------------
+@fn_vk{CreateInstance}, \n @fn_vk{DestroyInstance} | @ref Instance constructor and destructor
+
 @subsection vulkan-mapping-functions-e E
 
 @m_class{m-fullwidth}
@@ -46,6 +54,24 @@ Vulkan function                         | Matching API
 @fn_vk{EnumerateInstanceExtensionProperties} | @ref InstanceExtensionProperties
 @fn_vk{EnumerateInstanceLayerProperties} | @ref InstanceProperties
 @fn_vk{EnumerateInstanceVersion}        | @ref InstanceProperties
+
+@section vulkan-mapping-structures Structures
+
+@subsection vulkan-mapping-structures-a A
+
+@m_class{m-fullwidth}
+
+Vulkan structure                        | Matching API
+--------------------------------------- | ------------
+@type_vk{ApplicationInfo}               | @ref InstanceCreateInfo
+
+@m_class{m-fullwidth}
+
+@subsection vulkan-mapping-structures-i I
+
+Vulkan structure                        | Matching API
+--------------------------------------- | ------------
+@type_vk{InstanceCreateInfo}            | @ref InstanceCreateInfo
 
 */
 

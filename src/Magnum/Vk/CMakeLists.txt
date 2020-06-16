@@ -36,7 +36,9 @@ set(MagnumVk_SRCS
     Device.cpp
     Handle.cpp
     Result.cpp
-    Version.cpp)
+    Version.cpp
+
+    Implementation/Arguments.cpp)
 
 set(MagnumVk_GracefulAssert_SRCS
     Enums.cpp
@@ -55,6 +57,7 @@ set(MagnumVk_HEADERS
     visibility.h)
 
 set(MagnumVk_PRIVATE_HEADERS
+    Implementation/Arguments.h
     Implementation/compressedPixelFormatMapping.hpp
     Implementation/pixelFormatMapping.hpp
     Implementation/vertexFormatMapping.hpp)

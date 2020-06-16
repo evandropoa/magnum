@@ -23,37 +23,25 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-#include "Magnum/Magnum.h"
-#include "Magnum/Math/Color.h"
-#include "Magnum/Vk/Extensions.h"
-#include "Magnum/Vk/Integration.h"
-#include "Magnum/Vk/Instance.h"
+#include "Arguments.h"
 
-using namespace Magnum;
+#include <Corrade/Utility/Arguments.h>
 
-int main() {
-{
-Vk::Instance instance;
-/* [Instance-isExtensionEnabled] */
-if(instance.isExtensionEnabled<Vk::Extensions::EXT::debug_utils>()) {
-    // use the fancy debugging APIs
-} else if(instance.isExtensionEnabled<Vk::Extensions::EXT::debug_report>()) {
-    // use the non-fancy and deprecated debugging APIs
-} else {
-    // well, tough luck
-}
-/* [Instance-isExtensionEnabled] */
+namespace Magnum { namespace Vk { namespace Implementation {
+
+Utility::Arguments arguments() {
+    Utility::Arguments args{"magnum"};
+    args.addOption("disable-layers").setHelp("disable-layers", "Vulkan layers to disable", "LIST")
+        .addOption("disable-extensions").setHelp("disable-extensions", "Vulkan extensions to disable", "LIST")
+        .addOption("enable-instance-layers").setHelp("enable-instance-layers", "Vulkan instance layers to enable in addition to the defaults and what the application requests", "LIST")
+        .addOption("enable-instance-extensions").setHelp("enable-instance-extensions", "Vulkan instance extensions to enable in addition to the defaults and what the application requests", "LIST")
+        .addOption("log", "default").setHelp("log", "console logging", "default|quiet|verbose")
+        .setFromEnvironment("disable-layers")
+        .setFromEnvironment("disable-extensions")
+        .setFromEnvironment("enable-instance-layers")
+        .setFromEnvironment("enable-instance-extensions")
+        .setFromEnvironment("log");
+    return args;
 }
 
-{
-/* [Integration] */
-VkOffset2D a{64, 32};
-Vector2i b(a);
-
-using namespace Math::Literals;
-VkClearColorValue c = VkClearColorValue(0xff9391_srgbf);
-/* [Integration] */
-static_cast<void>(b);
-static_cast<void>(c);
-}
-}
+}}}

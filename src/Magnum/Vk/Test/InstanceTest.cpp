@@ -24,6 +24,7 @@
 */
 
 #include <set>
+#include <Corrade/Containers/String.h>
 #include <Corrade/TestSuite/Tester.h>
 #include <Corrade/TestSuite/Compare/Numeric.h>
 
@@ -40,6 +41,14 @@ struct InstanceTest: TestSuite::Tester {
     void extensionConstructFromCompileTimeExtension();
     void extensionExtensions();
 
+    void instanceCreateInfoConstructDefault();
+    void instanceCreateInfoConstructNoInit();
+    void instanceCreateInfoConstructFromVk();
+    void instanceCreateInfoApplicationInfo();
+    void instanceCreateInfoLayers();
+    void instanceCreateInfoExtensions();
+    void instanceCreateInfoCopiedStrings();
+
     void constructNoCreate();
     void constructCopy();
 };
@@ -49,9 +58,19 @@ InstanceTest::InstanceTest() {
               &InstanceTest::extensionConstructFromCompileTimeExtension,
               &InstanceTest::extensionExtensions,
 
+              &InstanceTest::instanceCreateInfoConstructDefault,
+              &InstanceTest::instanceCreateInfoConstructNoInit,
+              &InstanceTest::instanceCreateInfoConstructFromVk,
+              &InstanceTest::instanceCreateInfoApplicationInfo,
+              &InstanceTest::instanceCreateInfoLayers,
+              &InstanceTest::instanceCreateInfoExtensions,
+              &InstanceTest::instanceCreateInfoCopiedStrings,
+
               &InstanceTest::constructNoCreate,
               &InstanceTest::constructCopy});
 }
+
+using namespace Containers::Literals;
 
 void InstanceTest::isInstanceExtension() {
     CORRADE_VERIFY(Implementation::IsInstanceExtension<Extensions::KHR::get_physical_device_properties2>::value);
@@ -147,6 +166,155 @@ void InstanceTest::extensionExtensions() {
     }
 
     CORRADE_VERIFY(true);
+}
+
+void InstanceTest::instanceCreateInfoConstructDefault() {
+    InstanceCreateInfo info;
+    CORRADE_VERIFY(info->sType);
+    CORRADE_VERIFY(!info->pNext);
+    CORRADE_VERIFY(!info->ppEnabledLayerNames);
+    CORRADE_COMPARE(info->enabledLayerCount, 0);
+    CORRADE_VERIFY(!info->ppEnabledExtensionNames);
+    CORRADE_COMPARE(info->enabledExtensionCount, 0);
+
+    CORRADE_VERIFY(info->pApplicationInfo);
+    CORRADE_COMPARE(info->pApplicationInfo->apiVersion, 0);
+    CORRADE_COMPARE(info->pApplicationInfo->applicationVersion, 0);
+    CORRADE_COMPARE(info->pApplicationInfo->engineVersion, 0);
+    CORRADE_COMPARE(info->pApplicationInfo->pEngineName, "Magnum"_s);
+}
+
+void InstanceTest::instanceCreateInfoConstructNoInit() {
+    InstanceCreateInfo info;
+    info->sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+    new(&info) InstanceCreateInfo{NoInit};
+    CORRADE_COMPARE(info->sType, VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2);
+
+    CORRADE_VERIFY((std::is_nothrow_constructible<InstanceCreateInfo, NoInitT>::value));
+
+    /* Implicit construction is not allowed */
+    CORRADE_VERIFY(!(std::is_convertible<NoInitT, InstanceCreateInfo>::value));
+}
+
+void InstanceTest::instanceCreateInfoConstructFromVk() {
+    VkInstanceCreateInfo vkInfo;
+    vkInfo.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+
+    InstanceCreateInfo info{vkInfo};
+    CORRADE_COMPARE(info->sType, VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2);
+
+    CORRADE_VERIFY((std::is_nothrow_constructible<InstanceCreateInfo, VkInstanceCreateInfo>::value));
+
+    /* Implicit construction is not allowed */
+    CORRADE_VERIFY(!(std::is_convertible<VkInstanceCreateInfo, InstanceCreateInfo>::value));
+}
+
+void InstanceTest::instanceCreateInfoApplicationInfo() {
+    Containers::StringView name = "Magnum::Vk::Test::InstanceTest"_s;
+
+    InstanceCreateInfo info;
+    CORRADE_VERIFY(info->pApplicationInfo);
+    CORRADE_VERIFY(!info->pApplicationInfo->pApplicationName);
+    CORRADE_COMPARE(Version(info->pApplicationInfo->applicationVersion), Version{});
+
+    /* Setting an empty name should do nothing */
+    info.setApplicationInfo({}, {});
+    CORRADE_VERIFY(!info->pApplicationInfo->pApplicationName);
+    CORRADE_COMPARE(Version(info->pApplicationInfo->applicationVersion), Version{});
+
+    info.setApplicationInfo(name, version(0, 0, 1));
+    /* The pointer should be to the global data */
+    CORRADE_COMPARE(static_cast<const void*>(info->pApplicationInfo->pApplicationName), name.data());
+    CORRADE_COMPARE(Version(info->pApplicationInfo->applicationVersion), version(0, 0, 1));
+
+    /* Setting an empty view should put nullptr back */
+    info.setApplicationInfo({}, {});
+    CORRADE_VERIFY(!info->pApplicationInfo->pApplicationName);
+    CORRADE_COMPARE(Version(info->pApplicationInfo->applicationVersion), Version{});
+}
+
+void InstanceTest::instanceCreateInfoLayers() {
+    Containers::StringView layer = "VK_LAYER_KHRONOS_validation"_s;
+    Containers::StringView another = "VK_LAYER_this_doesnt_exist"_s;
+
+    InstanceCreateInfo info;
+    CORRADE_VERIFY(!info->ppEnabledLayerNames);
+    CORRADE_COMPARE(info->enabledLayerCount, 0);
+
+    info.addEnabledLayers({layer});
+    CORRADE_VERIFY(info->ppEnabledLayerNames);
+    CORRADE_COMPARE(info->enabledLayerCount, 1);
+    /* The pointer should be to the global data */
+    CORRADE_COMPARE(static_cast<const void*>(info->ppEnabledLayerNames[0]), layer.data());
+
+    info.addEnabledLayers({another, layer});
+    CORRADE_COMPARE(info->enabledLayerCount, 3);
+    /* The pointer should be to the global data */
+    CORRADE_COMPARE(static_cast<const void*>(info->ppEnabledLayerNames[0]), layer.data());
+    CORRADE_COMPARE(static_cast<const void*>(info->ppEnabledLayerNames[1]), another.data());
+    CORRADE_COMPARE(static_cast<const void*>(info->ppEnabledLayerNames[2]), layer.data());
+}
+
+void InstanceTest::instanceCreateInfoExtensions() {
+    InstanceCreateInfo info;
+    CORRADE_VERIFY(!info->ppEnabledExtensionNames);
+    CORRADE_COMPARE(info->enabledExtensionCount, 0);
+
+    info.addEnabledExtensions<Extensions::KHR::external_fence_capabilities>();
+    CORRADE_VERIFY(info->ppEnabledExtensionNames);
+    CORRADE_COMPARE(info->enabledExtensionCount, 1);
+    /* The pointer should be to the global data */
+    CORRADE_COMPARE(static_cast<const void*>(info->ppEnabledExtensionNames[0]),
+        Extensions::KHR::external_fence_capabilities::string().data());
+
+    info.addEnabledExtensions(
+        {Extensions::KHR::external_semaphore_capabilities{},
+         Extensions::KHR::get_physical_device_properties2{}});
+    CORRADE_COMPARE(info->enabledExtensionCount, 3);
+    /* The pointer should be to the global data */
+    CORRADE_COMPARE(static_cast<const void*>(info->ppEnabledExtensionNames[0]),
+        Extensions::KHR::external_fence_capabilities::string().data());
+    CORRADE_COMPARE(static_cast<const void*>(info->ppEnabledExtensionNames[1]),
+        Extensions::KHR::external_semaphore_capabilities::string().data());
+    CORRADE_COMPARE(static_cast<const void*>(info->ppEnabledExtensionNames[2]),
+        Extensions::KHR::get_physical_device_properties2::string().data());
+}
+
+void InstanceTest::instanceCreateInfoCopiedStrings() {
+    Containers::StringView globalButNotNullTerminated = "VK_LAYER_KHRONOS_validation3"_s.except(1);
+    Containers::String localButNullTerminated = Extensions::KHR::external_memory_capabilities::string();
+
+    InstanceCreateInfo info;
+    info.setApplicationInfo(localButNullTerminated, {})
+        .addEnabledLayers({globalButNotNullTerminated})
+        .addEnabledExtensions({localButNullTerminated});
+    CORRADE_COMPARE(info->enabledLayerCount, 1);
+    CORRADE_COMPARE(info->enabledExtensionCount, 1);
+
+    CORRADE_COMPARE(info->pApplicationInfo->pApplicationName, localButNullTerminated);
+    CORRADE_VERIFY(info->pApplicationInfo->pApplicationName != localButNullTerminated.data());
+
+    CORRADE_COMPARE(info->ppEnabledLayerNames[0], globalButNotNullTerminated);
+    CORRADE_VERIFY(info->ppEnabledLayerNames[0] != globalButNotNullTerminated.data());
+
+    CORRADE_COMPARE(info->ppEnabledExtensionNames[0], localButNullTerminated);
+    CORRADE_VERIFY(info->ppEnabledExtensionNames[0] != localButNullTerminated.data());
+}
+
+void InstanceTest::constructNoCreate() {
+    {
+        Instance instance{NoCreate};
+        CORRADE_COMPARE(instance.handle(), nullptr);
+        /* Instance function pointers should be null */
+        CORRADE_VERIFY(!instance->CreateDevice);
+    }
+
+    CORRADE_VERIFY(true);
+}
+
+void InstanceTest::constructCopy() {
+    CORRADE_VERIFY(!(std::is_constructible<Instance, const Instance&>{}));
+    CORRADE_VERIFY(!(std::is_assignable<Instance, const Instance&>{}));
 }
 
 }}}}

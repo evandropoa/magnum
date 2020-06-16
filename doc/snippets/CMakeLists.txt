@@ -186,6 +186,11 @@ if(WITH_VK)
     target_link_libraries(snippets-MagnumVk PRIVATE MagnumVk)
     set_target_properties(snippets-MagnumVk
         PROPERTIES FOLDER "Magnum/doc/snippets")
+
+    add_library(snippets-MagnumVk-instance STATIC MagnumVk-instance.cpp)
+    target_link_libraries(snippets-MagnumVk-instance PRIVATE MagnumVk)
+    set_target_properties(snippets-MagnumVk-instance
+        PROPERTIES FOLDER "Magnum/doc/snippets")
 endif()
 
 if(WITH_SDL2APPLICATION AND TARGET_GL)

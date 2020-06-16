@@ -1,3 +1,5 @@
+#ifndef Magnum_Vk_Implementation_Arguments_h
+#define Magnum_Vk_Implementation_Arguments_h
 /*
     This file is part of Magnum.
 
@@ -23,37 +25,16 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+#include <Corrade/Utility/Utility.h>
+
 #include "Magnum/Magnum.h"
-#include "Magnum/Math/Color.h"
-#include "Magnum/Vk/Extensions.h"
-#include "Magnum/Vk/Integration.h"
-#include "Magnum/Vk/Instance.h"
 
-using namespace Magnum;
+namespace Magnum { namespace Vk { namespace Implementation {
 
-int main() {
-{
-Vk::Instance instance;
-/* [Instance-isExtensionEnabled] */
-if(instance.isExtensionEnabled<Vk::Extensions::EXT::debug_utils>()) {
-    // use the fancy debugging APIs
-} else if(instance.isExtensionEnabled<Vk::Extensions::EXT::debug_report>()) {
-    // use the non-fancy and deprecated debugging APIs
-} else {
-    // well, tough luck
-}
-/* [Instance-isExtensionEnabled] */
-}
+/* Used by both InstanceCreateInfo and DeviceCreateInfo, each takes a subset
+   of the arguments */
+Utility::Arguments arguments();
 
-{
-/* [Integration] */
-VkOffset2D a{64, 32};
-Vector2i b(a);
+}}}
 
-using namespace Math::Literals;
-VkClearColorValue c = VkClearColorValue(0xff9391_srgbf);
-/* [Integration] */
-static_cast<void>(b);
-static_cast<void>(c);
-}
-}
+#endif

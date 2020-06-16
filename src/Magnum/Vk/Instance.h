@@ -31,11 +31,14 @@
  */
 
 #include <Corrade/Containers/Array.h>
+#include <Corrade/Containers/Pointer.h>
 #include <Corrade/Containers/StringView.h>
 
 #include "Magnum/Tags.h"
+#include "Magnum/Math/BoolVector.h"
 #include "Magnum/Vk/Handle.h"
 #include "Magnum/Vk/Vk.h"
+#include "Magnum/Vk/Vulkan.h"
 #include "Magnum/Vk/visibility.h"
 
 namespace Magnum { namespace Vk {
@@ -249,8 +252,8 @@ class MAGNUM_VK_EXPORT InstanceExtensionProperties {
          * extension or a plain extension string.
          *
          * Search complexity is @f$ \mathcal{O}(\log n) @f$ in the total
-         * extension count; in contrast extension queries on a created instance
-         * are @f$ \mathcal{O}(1) @f$.
+         * extension count, in contrast the @ref Instance::isExtensionEnabled()
+         * queries are @f$ \mathcal{O}(1) @f$.
          * @see @ref extensionRevision()
          */
         bool isExtensionSupported(Containers::StringView extension) const;
@@ -330,6 +333,312 @@ class MAGNUM_VK_EXPORT InstanceExtensionProperties {
     private:
         Containers::Array<VkExtensionProperties> _extensions;
         std::size_t _uniqueExtensionCount;
+};
+
+/**
+@brief Instance creation info
+@m_since_latest
+
+Wraps @type_vk_keyword{InstanceCreateInfo} and
+@type_vk_keyword{ApplicationInfo}.
+@see @ref Instance::Instance(const InstanceCreateInfo&)
+*/
+class MAGNUM_VK_EXPORT InstanceCreateInfo {
+    public:
+        /**
+         * @brief Instance flag
+         *
+         * @see @ref Flags, @ref InstanceCreateInfo(Int, const char**, const InstanceProperties*, const InstanceExtensionProperties*, Flags)
+         */
+        enum class Flag: UnsignedInt {};
+
+        /**
+         * @brief Instance flags
+         *
+         * @see @ref InstanceCreateInfo(Int, const char**, const InstanceProperties*, const InstanceExtensionProperties*, Flags)
+         */
+        typedef Containers::EnumSet<Flag> Flags;
+
+        /**
+         * @brief Constructor
+         * @param argc          Command-line argument count. Can be @cpp 0 @ce.
+         * @param argv          Command-line argument values. Can be
+         *      @cpp nullptr @ce.
+         * @param properties    Existing @ref InstanceProperties instance for
+         *      querying available Vulkan version and layers. If
+         *      @cpp nullptr @ce, a new instance may be created internally if
+         *      needed.
+         * @param extensionProperties Existing @ref InstanceExtensionProperties
+         *      instance for querying available Vulkan extensions. If
+         *      @cpp nullptr @ce, a new instance may be created internally if
+         *      needed.
+         * @param flags         Instance flags
+         *
+         * The following values are pre-filled in addition to `sType`,
+         * everything else is zero-filled:
+         *
+         * -    @cpp pApplicationInfo @ce
+         * -    @cpp pApplicationInfo->engineName @ce to @cpp "Magnum" @ce
+         */
+        explicit InstanceCreateInfo(Int argc, const char** argv, const InstanceProperties* properties, const InstanceExtensionProperties* const extensionProperties, Flags flags = {});
+
+        /** @overload */
+        explicit InstanceCreateInfo(Int argc, char** argv, const InstanceProperties* properties, const InstanceExtensionProperties* extensionProperties, Flags flags = {}): InstanceCreateInfo{argc, const_cast<const char**>(argv), properties, extensionProperties, flags} {}
+
+        /** @overload */
+        explicit InstanceCreateInfo(Int argc, std::nullptr_t argv, const InstanceProperties* properties, const InstanceExtensionProperties* extensionProperties, Flags flags = {}): InstanceCreateInfo{argc, static_cast<const char**>(argv), properties, extensionProperties, flags} {}
+
+        /** @overload */
+        explicit InstanceCreateInfo(Int argc, const char** argv, Flags flags = {}): InstanceCreateInfo{argc, argv, nullptr, nullptr, flags} {}
+
+        /** @overload */
+        explicit InstanceCreateInfo(Int argc, char** argv, Flags flags = {}): InstanceCreateInfo{argc, const_cast<const char**>(argv), nullptr, nullptr, flags} {}
+
+        /** @overload */
+        explicit InstanceCreateInfo(Int argc, std::nullptr_t argv, Flags flags = {}): InstanceCreateInfo{argc, static_cast<const char**>(argv), nullptr, nullptr, flags} {}
+
+        /** @overload */
+        explicit InstanceCreateInfo(Flags flags = {}): InstanceCreateInfo{0, nullptr, flags} {}
+
+        /**
+         * @brief Construct without initializing the contents
+         *
+         * Note that not even the `sType` field is set --- the structure has to
+         * be fully initialized afterwards in order to be usable.
+         */
+        explicit InstanceCreateInfo(NoInitT) noexcept;
+
+        /**
+         * @brief Construct from existing data
+         *
+         * Copies the existing values verbatim, pointers are kept unchanged
+         * without taking over the ownership. Modifying the newly created
+         * instance will not modify the original data or the pointed-to data.
+         */
+        explicit InstanceCreateInfo(const VkInstanceCreateInfo& info) noexcept;
+
+        ~InstanceCreateInfo();
+
+        /**
+         * @brief Set application info
+         *
+         * Use the @ref version() helper to create the @p version value. The
+         * name is @cpp nullptr @ce by default.
+         */
+        InstanceCreateInfo& setApplicationInfo(Containers::StringView name, Version version);
+
+        /**
+         * @brief Add enabled layers
+         *
+         * All listed layers are expected be supported, use
+         * @ref InstanceProperties::isLayerSupported() to check for their
+         * presence.
+         *
+         * The function makes copies of string views that are not owning or
+         * null-terminated, use the @link Containers::Literals::operator""_s() @endlink
+         * literal to prevent that where possible.
+         */
+        InstanceCreateInfo& addEnabledLayers(Containers::ArrayView<const Containers::StringView> layers);
+        /** @overload */
+        InstanceCreateInfo& addEnabledLayers(std::initializer_list<Containers::StringView> layers);
+
+        /**
+         * @brief Add enabled instance extensions
+         *
+         * All listed extensions are expected to be supported either globally
+         * or in at least one of the enabled layers, use
+         * @ref InstanceExtensionProperties::isExtensionSupported() to check
+         * for their presence.
+         *
+         * The function makes copies of string views that are not owning or
+         * null-terminated, use the @link Containers::Literals::operator""_s() @endlink
+         * literal to prevent that where possible.
+         */
+        InstanceCreateInfo& addEnabledExtensions(Containers::ArrayView<const Containers::StringView> extensions);
+        /** @overload */
+        InstanceCreateInfo& addEnabledExtensions(std::initializer_list<Containers::StringView> extension);
+        /** @overload */
+        InstanceCreateInfo& addEnabledExtensions(Containers::ArrayView<const InstanceExtension> extensions);
+        /** @overload */
+        InstanceCreateInfo& addEnabledExtensions(std::initializer_list<InstanceExtension> extension);
+        /** @overload */
+        template<class ...E> InstanceCreateInfo& addEnabledExtensions() {
+            static_assert(Implementation::IsInstanceExtension<E...>::value, "expected only Vulkan instance extensions");
+            return addEnabledExtensions({E{}...});
+        }
+
+        /** @brief Underlying @type_vk{InstanceCreateInfo} structure */
+        VkInstanceCreateInfo& operator*() { return _info; }
+        /** @overload */
+        const VkInstanceCreateInfo& operator*() const { return _info; }
+        /** @overload */
+        VkInstanceCreateInfo* operator->() { return &_info; }
+        /** @overload */
+        const VkInstanceCreateInfo* operator->() const { return &_info; }
+        /** @overload */
+        operator const VkInstanceCreateInfo*() const { return &_info; }
+
+    private:
+        friend Instance;
+
+        VkInstanceCreateInfo _info;
+        VkApplicationInfo _applicationInfo;
+        struct State;
+        Containers::Pointer<State> _state;
+};
+
+/**
+@brief Instance
+@m_since_latest
+
+Wraps a @type_vk_keyword{Instance} and stores all instance-specific function
+pointers.
+@see @ref vulkan-wrapping
+*/
+class MAGNUM_VK_EXPORT Instance {
+    public:
+        /**
+         * @brief Wrap existing Vulkan instance
+         * @param handle        The @type_vk{Instance} handle
+         * @param enabledExtensions Extensions that are assumed to be enabled
+         *      on the instance
+         * @param flags         Handle flags
+         *
+         * The @p handle is expected to be of an existing Vulkan instance.
+         * The @p enabledExtensions parameter populates internal info about
+         * enabled extensions and will be reflected in @ref isExtensionEnabled(),
+         * among other things. If empty,
+         *
+         * Unlike an instance created using a constructor, the Vulkan instance
+         * is by default not deleted on destruction, use @p flags for different
+         * behavior.
+         * @see @ref release()
+         */
+        static Instance wrap(VkInstance handle, Containers::ArrayView<const Containers::StringView> enabledExtensions = {}, HandleFlags flags = {});
+
+        /** @overload */
+        static Instance wrap(VkInstance handle, std::initializer_list<Containers::StringView> enabledExtensions, HandleFlags flags = {}) {
+            return wrap(handle, Containers::arrayView(enabledExtensions), flags);
+        }
+
+        /**
+         * @brief Default constructor
+         *
+         * @see @fn_vk_keyword{CreateInstance}
+         */
+        explicit Instance(const InstanceCreateInfo& info = InstanceCreateInfo{});
+
+        /**
+         * @brief Construct without creating the instance
+         *
+         * The constructed instance is equivalent to moved-from state. Useful
+         * in cases where you will overwrite the instance later anyway. Move
+         * another object over it to make it useful.
+         */
+        explicit Instance(NoCreateT);
+
+        /** @brief Copying is not allowed */
+        Instance(const Instance&) = delete;
+
+        /** @brief Move constructor */
+        Instance(Instance&& other) noexcept;
+
+        /**
+         * @brief Destructor
+         *
+         * Destroys associated @type_vk{Instance} object, unless the instance
+         * was created using @ref wrap() without @ref HandleFlag::DestroyOnDestruction
+         * specified.
+         * @see @fn_vk_keyword{DestroyInstance}, @ref release()
+         */
+        ~Instance();
+
+        /** @brief Copying is not allowed */
+        Instance& operator=(const Instance&) = delete;
+
+        /** @brief Move assignment */
+        Instance& operator=(Instance&& other) noexcept;
+
+        /** @brief Underlying @type_vk{Instance} handle */
+        VkInstance handle() { return _handle; }
+        /** @overload */
+        operator VkInstance() { return _handle; }
+
+        /** @brief Handle flags */
+        HandleFlags handleFlags() const { return _flags; }
+
+        /**
+         * @brief Release the underlying Vulkan instance
+         *
+         * Releases ownership of the Vulkan instance and returns its handle so
+         * @fn_vk{DestroyInstance} is not called on destruction. The internal
+         * state is then equivalent to moved-from state.
+         * @see @ref wrap()
+         */
+        VkInstance release();
+
+        /**
+         * @brief Whether given extension is enabled
+         *
+         * Accepts instance extensions from the @ref Extensions namespace,
+         * listed also in the @ref vulkan-support "Vulkan support tables".
+         * Search complexity is @f$ \mathcal{O}(1) @f$. Example usage:
+         *
+         * @snippet MagnumVk.cpp Instance-isExtensionEnabled
+         *
+         * Note that this returns @cpp true @ce only if given extension is
+         * supported by the driver *and* it was enabled in
+         * @ref InstanceCreateInfo when creating the @ref Instance. For
+         * querying extension support before creating an instance use
+         * @ref InstanceExtensionProperties::isExtensionSupported().
+         */
+        template<class E> bool isExtensionEnabled() const {
+            static_assert(Implementation::IsInstanceExtension<E>::value, "expected a Vulkan instance extension");
+            return _extensionStatus[E::InstanceIndex];
+        }
+
+        /** @overload */
+        bool isExtensionEnabled(const InstanceExtension& extension) const {
+            return _extensionStatus[extension.index()];
+        }
+
+        /**
+         * @brief Instance-specific Vulkan function pointers
+         *
+         * Function pointers are implicitly stored per-instance, use
+         * @ref populateGlobalFunctionPointers() to populate the global `vk*`
+         * functions.
+         */
+        const FlextVkInstance& operator*() const { return _functionPointers; }
+        /** @overload */
+        const FlextVkInstance* operator->() const { return &_functionPointers; }
+
+        /**
+         * @brief Populate global instance-level function pointers to be used with third-party code
+         *
+         * Populates instance-level global function pointers so third-party
+         * code is able to call global instance-level `vk*` functions:
+         *
+         * @snippet MagnumVk-instance.cpp global-instance-function-pointers
+         *
+         * @attention This operation is changing global state. You need to
+         *      ensure that this function is not called simultaenously from
+         *      multiple threads and code using those function points is
+         *      calling them with the same instance as the one returned by
+         *      @ref handle().
+         */
+        void populateGlobalFunctionPointers();
+
+    private:
+        VkInstance _handle;
+        HandleFlags _flags;
+
+        Math::BoolVector<Implementation::InstanceExtensionCount> _extensionStatus;
+
+        /* This member is bigger than you might think */
+        FlextVkInstance _functionPointers;
+
+        template<class T> MAGNUM_VK_LOCAL void initialize(Containers::ArrayView<const T> enabledExtensions);
 };
 
 }}
