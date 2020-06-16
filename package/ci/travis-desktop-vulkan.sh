@@ -2,7 +2,7 @@
 set -ev
 
 # Corrade
-git clone --depth 1 git://github.com/mosra/corrade.git
+git clone --depth 1 --branch string git://github.com/mosra/corrade.git
 cd corrade
 mkdir build && cd build
 cmake .. \
